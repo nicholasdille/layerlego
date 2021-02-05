@@ -1,0 +1,5 @@
+FROM base AS docker
+# renovate: datasource=github-tags depName=docker/cli
+ENV DOCKER_VERSION=20.10.3
+RUN curl --silent "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" | \
+        tar -xzC /usr/local/bin --strip-components=1
