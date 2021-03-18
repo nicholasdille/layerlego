@@ -1,5 +1,5 @@
 FROM base AS docker-compose
 # renovate: datasource=github-releases depName=docker/compose
-ENV DOCKER_COMPOSE_VERSION=1.28.2
+ARG DOCKER_COMPOSE_VERSION=1.28.2
 RUN curl --silent --output /usr/local/bin/docker-compose "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-Linux-x86_64" \
  && chmod +x /usr/local/bin/docker-compose

@@ -1,5 +1,5 @@
 FROM base AS golang
 # renovate: datasource=github-tags depName=golang/go
-ENV GO_VERSION=1.12.15
+ARG GO_VERSION=1.12.15
 RUN curl --silent --location https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | \
         tar -xzC /usr/local --strip-components=1
