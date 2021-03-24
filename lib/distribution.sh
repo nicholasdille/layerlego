@@ -118,7 +118,6 @@ function upload_config() {
 
     >&2 echo "[upload_config] Upload config"
     curl "${UPLOAD_URL}" \
-        --verbose \
         --fail \
         --request PUT \
         --header "Content-Type: application/vnd.docker.container.image.v1+json" \
