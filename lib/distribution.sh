@@ -1,11 +1,18 @@
+MEDIA_TYPE_MANIFEST_V1=application/vnd.docker.distribution.manifest.v1+json
+MEDIA_TYPE_MANIFEST_V2=application/vnd.docker.distribution.manifest.v2+json
+MEDIA_TYPE_MANIFEST_LIST=application/vnd.docker.distribution.manifest.list.v2+json
+MEDIA_TYPE_CONFIG=application/vnd.docker.container.image.v1+json
+MEDIA_TYPE_LAYER=application/vnd.docker.image.rootfs.diff.tar.gzip
+
 function get_manifest() {
     REPOSITORY=$1
     TAG=$2
     : "${TAG:=latest}"
+    #echo "[get_manifest] Getting manifest from registry ${REGISTRY} for repository ${REPOSITORY} with tag ${TAG}"
 
     curl "http://${REGISTRY}/v2/${REPOSITORY}/manifests/${TAG}" \
         --silent \
-        --header "Accept: application/vnd.docker.distribution.manifest.v2+json"
+        --header "Accept: ${MEDIA_TYPE_MANIFEST_V2}"
 }
 
 function get_config_digest() {
@@ -19,7 +26,7 @@ function get_config_by_digest() {
 
     curl "http://${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}" \
             --silent \
-            --header "Accept: application/vnd.docker.container.image.v1+json"
+            --header "Accept: ${MEDIA_TYPE_CONFIG}"
 }
 
 function get_config() {
@@ -32,7 +39,7 @@ function get_config() {
         xargs -I{} \
             curl "http://${REGISTRY}/v2/${REPOSITORY}/blobs/{}" \
                 --silent \
-                --header "Accept: application/vnd.docker.container.image.v1+json"
+                --header "Accept: ${MEDIA_TYPE_CONFIG}"
 }
 
 function check_digest() {
@@ -78,7 +85,7 @@ function upload_manifest() {
         --silent \
         --fail \
         --request PUT \
-        --header "Content-Type: application/vnd.docker.distribution.manifest.v2+json" \
+        --header "Content-Type: ${MEDIA_TYPE_MANIFEST_V2}" \
         --data "${MANIFEST}"            
 }
 
@@ -98,10 +105,8 @@ function get_upload_uuid() {
 
 function upload_config() {
     REPOSITORY=$1
-    TAG=$2
-    : "${TAG:=latest}"
 
-    >&2 echo "[upload_config] REPOSITORY=${REPOSITORY} TAG=${TAG}"
+    >&2 echo "[upload_config] REPOSITORY=${REPOSITORY}"
 
     CONFIG="$(cat)"
     CONFIG_DIGEST="sha256:$(echo -n "${CONFIG}" | sha256sum | cut -d' ' -f1)"
@@ -120,9 +125,37 @@ function upload_config() {
     curl "${UPLOAD_URL}" \
         --fail \
         --request PUT \
-        --header "Content-Type: application/vnd.docker.container.image.v1+json" \
+        --header "Content-Type: ${MEDIA_TYPE_CONFIG}" \
         --data "${CONFIG}"
     >&2 echo "[upload_config] Done"
+}
+
+function upload_blob() {
+    REPOSITORY=$1
+    LAYER=$2
+    TYPE=$3
+
+    >&2 echo "[upload_blob] REPOSITORY=${REPOSITORY}"
+
+    BLOB_DIGEST="sha256:$(sha256sum "${LAYER}" | cut -d' ' -f1)"
+
+    >&2 echo "[upload_blob] Check existence of digest ${BLOB_DIGEST} in repository ${REPOSITORY}"
+    if check_digest "${REPOSITORY}" "${BLOB_DIGEST}"; then
+        >&2 echo "[upload_blob] Digest already exists"
+        return
+    fi
+    >&2 echo "[upload_blob] Does not exist yet"
+
+    UPLOAD_URL="$(get_upload_uuid "${REPOSITORY}")&digest=${BLOB_DIGEST}"
+    >&2 echo "[upload_blob] URL is <${UPLOAD_URL}>"
+
+    >&2 echo "[upload_blob] Upload blob"
+    curl "${UPLOAD_URL}" \
+        --fail \
+        --request PUT \
+        --header "Content-Type: ${TYPE}" \
+        --data-binary "@${LAYER}"
+    >&2 echo "[upload_blob] Done"
 }
 
 function mount_digest() {

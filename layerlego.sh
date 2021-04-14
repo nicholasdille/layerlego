@@ -47,7 +47,8 @@ for LAYER in docker; do
     echo "Patch manifest"
     mv "${TEMP}/manifest.json" "${TEMP}/manifest.json.bak"
     cat "${TEMP}/manifest.json.bak" | \
-        jq '.layers += [{"mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip", "size": $size | tonumber, "digest": $digest}]' \
+        jq '.layers += [{"mediaType": $type, "size": $size | tonumber, "digest": $digest}]' \
+            --arg type "${MEDIA_TYPE_IMAGE}" \
             --arg digest "${LAYER_BLOB}" \
             --arg size "${LAYER_SIZE}" \
     >"${TEMP}/manifest.json"
