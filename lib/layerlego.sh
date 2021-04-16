@@ -3,6 +3,8 @@ function mount_config_blob() {
     REPOSITORY=$2
     SOURCE=$3
 
+    >&2 echo "[mount_config_blob] Mount config from ${SOURCE} to ${REPOSITORY}"
+
     cat | \
         jq --raw-output '.config.digest' | \
         while read -r DIGEST; do
@@ -32,6 +34,8 @@ function mount_blobs() {
     SOURCE=$3
     TAG=${4:-latest}
 
+    >&2 echo "[mount_blobs] Mount config and all layers from ${SOURCE}:${TAG} to ${REPOSITORY}"
+
     MANIFEST="$(get_manifest "${REGISTRY}" "${SOURCE}" "${TAG}")"
 
     echo -n "${MANIFEST}" | \
@@ -56,6 +60,7 @@ function update_config() {
     SIZE=$2
 
     >&2 echo "[update_config] DIGEST=${DIGEST} SIZE=${SIZE}"
+
     cat | \
         jq '.config.digest = $digest | .config.size = ($size | tonumber)' \
             --arg digest "${DIGEST}" \
