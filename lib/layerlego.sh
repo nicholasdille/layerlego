@@ -6,7 +6,7 @@ function mount_config_blob() {
     cat | \
         jq --raw-output '.config.digest' | \
         while read -r DIGEST; do
-            #echo "[mount_blobs] Mount config digest ${DIGEST}"
+            >&2 echo "[mount_blobs] Mount config digest ${DIGEST}"
             mount_digest "${REGISTRY}" join base "${DIGEST}"
         done
 }
@@ -16,10 +16,12 @@ function mount_layer_blobs() {
     REPOSITORY=$2
     SOURCE=$3
 
+    >&2 echo "[mount_layer_blobs]"
+
     cat | \
         jq --raw-output '.layers[].digest' | \
         while read -r DIGEST; do
-            #echo "[mount_layers] Mount layer digest ${DIGEST}"
+            >&2 echo "[mount_layer_blobs] Mount layer digest ${DIGEST}"
             mount_digest "${REGISTRY}" "${REPOSITORY}" "${SOURCE}" "${DIGEST}"
         done
 }
@@ -28,8 +30,7 @@ function mount_blobs() {
     REGISTRY=$1
     REPOSITORY=$2
     SOURCE=$3
-    TAG=$4
-    : "${TAG:=latest}"
+    TAG=${4:-latest}
 
     MANIFEST="$(get_manifest "${REGISTRY}" "${SOURCE}" "${TAG}")"
 
