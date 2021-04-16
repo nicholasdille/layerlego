@@ -10,7 +10,7 @@ function parse_image {
     assert_value "${image}" "[ERROR] Failed to provide image. Usage: parse_image <image>"
 
     local registry=$(echo -n "${image}" | cut -d'/' -f1)
-    local repository=$(echo -n "${image}" | cut -d'/' -f2-)
+    local repository=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f1)
     local tag=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f2)
 
     echo "registry=${registry} repository=${repository} tag=${tag}"
