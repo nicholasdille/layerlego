@@ -3,6 +3,11 @@ function mount_config_blob() {
     REPOSITORY=$2
     SOURCE=$3
 
+    assert_pipeline_input "[EEE] [mount_config_blob] Failed to provide pipeline input. Usage: cat | mount_config_blob <registry> <repository> <repository>"
+    assert_value "${REGISTRY}" "[EEE] [mount_config_blob] Failed to provide registry. Usage: cat | mount_config_blob <registry> <repository> <repository>"
+    assert_value "${REPOSITORY}" "[EEE] [mount_config_blob] Failed to provide repository. Usage: cat | mount_config_blob <registry> <repository> <repository>"
+    assert_value "${SOURCE}" "[EEE] [mount_config_blob] Failed to provide source repository. Usage: cat | mount_config_blob <registry> <repository> <repository>"
+
     >&2 echo "[mount_config_blob] Mount config from ${SOURCE} to ${REPOSITORY}"
 
     cat | \
@@ -18,7 +23,12 @@ function mount_layer_blobs() {
     REPOSITORY=$2
     SOURCE=$3
 
-    >&2 echo "[mount_layer_blobs]"
+    assert_pipeline_input "[EEE] [mount_layer_blobs] Failed to provide pipeline input. Usage: cat | mount_layer_blobs <registry> <repository> <repository>"
+    assert_value "${REGISTRY}" "[EEE] [mount_layer_blobs] Failed to provide registry. Usage: cat | mount_layer_blobs <registry> <repository> <repository>"
+    assert_value "${REPOSITORY}" "[EEE] [mount_layer_blobs] Failed to provide repository. Usage: cat | mount_layer_blobs <registry> <repository> <repository>"
+    assert_value "${SOURCE}" "[EEE] [mount_layer_blobs] Failed to provide source repository. Usage: cat | mount_layer_blobs <registry> <repository> <repository>"
+
+    >&2 echo "[mount_layer_blobs] Mount layer blobs from repository ${SOURCE} to repository ${REPOSITORY}"
 
     cat | \
         jq --raw-output '.layers[].digest' | \
@@ -33,6 +43,10 @@ function mount_blobs() {
     REPOSITORY=$2
     SOURCE=$3
     TAG=${4:-latest}
+
+    assert_value "${REGISTRY}" "[EEE] [mount_blobs] Failed to provide registry. Usage: mount_blobs <registry> <repository> <repository> [<tag>]"
+    assert_value "${REPOSITORY}" "[EEE] [mount_blobs] Failed to provide repository. Usage: mount_blobs <registry> <repository> <repository> [<tag>]"
+    assert_value "${SOURCE}" "[EEE] [mount_blobs] Failed to provide source repository. Usage: mount_blobs <registry> <repository> <repository> [<tag>]"
 
     >&2 echo "[mount_blobs] Mount config and all layers from ${SOURCE}:${TAG} to ${REPOSITORY}"
 
@@ -49,6 +63,8 @@ function get_blob_metadata() {
     >&2 echo "[get_blob_metadata]"
     BLOB="$(cat)"
 
+    assert_pipeline_input "[EEE] [get_blob_metadata] Failed to provide pipeline input. Usage: cat | get_blob_metadata"
+
     CONFIG_DIGEST="sha256:$(echo -n "${BLOB}" | sha256sum | cut -d' ' -f1)"
     CONFIG_SIZE="$(echo -n "${BLOB}" | wc -c)"
 
@@ -58,6 +74,10 @@ function get_blob_metadata() {
 function update_config() {
     DIGEST=$1
     SIZE=$2
+
+    assert_pipeline_input "[EEE] [update_config] Failed to provide pipeline input. Usage: cat | update_config <digest> <size>"
+    assert_value "${DIGEST}" "[EEE] [update_config] Failed to provide config digest. Usage: cat | update_config <digest> <size>"
+    assert_value "${SIZE}" "[EEE] [update_config] Failed to provide size. Usage: cat | update_config <digest> <size>"
 
     if test "${DIGEST:0:7}" != "sha256:"; then
         DIGEST="sha256:${DIGEST}"
@@ -74,7 +94,11 @@ function update_config() {
 function append_layer_to_manifest() {
     DIGEST=$1
     SIZE=$2
-    TYPE=$3
+    TYPE=${3:-${MEDIA_TYPE_LAYER}}
+
+    assert_pipeline_input "[EEE] [append_layer_to_manifest] Failed to provide pipeline input. Usage: cat | update_config <digest> <size> [<type>]"
+    assert_value "${DIGEST}" "[EEE] [append_layer_to_manifest] Failed to provide config digest. Usage: cat | update_config <digest> <size> [<type>]"
+    assert_value "${SIZE}" "[EEE] [append_layer_to_manifest] Failed to provide size. Usage: cat | update_config <digest> <size> [<type>]"
 
     if test "${DIGEST:0:7}" != "sha256:"; then
         DIGEST="sha256:${DIGEST}"
@@ -91,6 +115,10 @@ function append_layer_to_config() {
     DIGEST=$1
     COMMAND=$2
 
+    assert_pipeline_input "[EEE] [append_layer_to_config] Failed to provide pipeline input. Usage: cat | append_layer_to_config <digest> <command>"
+    assert_value "${DIGEST}" "[EEE] [append_layer_to_config] Failed to provide config digest. Usage: cat | append_layer_to_config <digest> <command>"
+    assert_value "${COMMAND}" "[EEE] [append_layer_to_config] Failed to provide command. Usage: cat | append_layer_to_config <digest> <command>"
+
     cat | \
         jq '.history += [$command | fromjson]' \
             --arg command "${COMMAND}" | \
@@ -101,6 +129,10 @@ function append_layer_to_config() {
 function insert_layer_in_config() {
     INDEX=$1
     DIGEST=$2
+
+    assert_pipeline_input "[EEE] [insert_layer_in_config] Failed to provide pipeline input. Usage: cat | insert_layer_in_config <index> <digest>"
+    assert_value "${INDEX}" "[EEE] [insert_layer_in_config] Failed to provide index. Usage: cat | insert_layer_in_config <index> <digest>"
+    assert_value "${DIGEST}" "[EEE] [insert_layer_in_config] Failed to provide config digest. Usage: cat | insert_layer_in_config <index> <digest>"
 
     if test "${DIGEST:0:7}" != "sha256:"; then
         DIGEST="sha256:${DIGEST}"
@@ -118,6 +150,11 @@ function insert_layer_in_manifest() {
     SIZE=$3
     TYPE=${4:-${MEDIA_TYPE_LAYER}}
 
+    assert_pipeline_input "[EEE] [insert_layer_in_manifest] Failed to provide pipeline input. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+    assert_value "${INDEX}" "[EEE] [insert_layer_in_manifest] Failed to provide index. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+    assert_value "${DIGEST}" "[EEE] [insert_layer_in_manifest] Failed to provide layer digest. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+    assert_value "${SIZE}" "[EEE] [insert_layer_in_manifest] Failed to provide layer size. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+
     if test "${DIGEST:0:7}" != "sha256:"; then
         DIGEST="sha256:${DIGEST}"
     fi
@@ -133,6 +170,10 @@ function insert_layer_in_manifest() {
 function replace_layer_in_config() {
     INDEX=$1
     DIGEST=$2
+
+    assert_pipeline_input "[EEE] [replace_layer_in_config] Failed to provide pipeline input. Usage: cat | replace_layer_in_config <index> <digest>"
+    assert_value "${INDEX}" "[EEE] [replace_layer_in_config] Failed to provide index. Usage: cat | replace_layer_in_config <index> <digest>"
+    assert_value "${DIGEST}" "[EEE] [replace_layer_in_config] Failed to provide layer digest. Usage: cat | replace_layer_in_config <index> <digest>"
 
     if test "${DIGEST:0:7}" != "sha256:"; then
         DIGEST="sha256:${DIGEST}"
@@ -150,6 +191,11 @@ function replace_layer_in_manifest() {
     SIZE=$3
     TYPE=${4:-${MEDIA_TYPE_LAYER}}
 
+    assert_pipeline_input "[EEE] [replace_layer_in_manifest] Failed to provide pipeline input. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+    assert_value "${INDEX}" "[EEE] [replace_layer_in_manifest] Failed to provide index. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+    assert_value "${DIGEST}" "[EEE] [replace_layer_in_manifest] Failed to provide layer digest. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+    assert_value "${SIZE}" "[EEE] [replace_layer_in_manifest] Failed to provide layer size. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
+
     if test "${DIGEST:0:7}" != "sha256:"; then
         DIGEST="sha256:${DIGEST}"
     fi
@@ -165,6 +211,9 @@ function replace_layer_in_manifest() {
 function get_layer_index_by_command() {
     COMMAND=$1
 
+    assert_pipeline_input "[EEE] [get_layer_index_by_command] Failed to provide pipeline input. Usage: cat | get_layer_index_by_command <command>"
+    assert_value "${COMMAND}" "[EEE] [get_layer_index_by_command] Failed to provide command. Usage: cat | get_layer_index_by_command <command>"
+
     cat | \
         jq '.history | to_entries[] | select(.value.created_by | startswith($command)) | .key' \
             --arg command "${COMMAND}"
@@ -173,6 +222,9 @@ function get_layer_index_by_command() {
 function count_empty_layers_before_index() {
     INDEX=$1
 
+    assert_pipeline_input "[EEE] [count_empty_layers_before_index] Failed to provide pipeline input. Usage: cat | count_empty_layers_before_index <index>"
+    assert_value "${INDEX}" "[EEE] [count_empty_layers_before_index] Failed to provide layer index. Usage: cat | count_empty_layers_before_index <index>"
+
     cat | \
         jq '.history | to_entries | map(select(.key < $index)) | map(select(.value.empty_layer == true)) | length' \
             --arg index "${INDEX}"
@@ -180,6 +232,9 @@ function count_empty_layers_before_index() {
 
 function get_layer_digest_by_index() {
     INDEX=$1
+
+    assert_pipeline_input "[EEE] [get_layer_digest_by_index] Failed to provide pipeline input. Usage: cat | get_layer_digest_by_index <index>"
+    assert_value "${INDEX}" "[EEE] [get_layer_digest_by_index] Failed to provide layer index. Usage: cat | get_layer_digest_by_index <index>"
 
     cat | \
         jq '.layers[$index | tonumber].digest' \

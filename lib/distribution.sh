@@ -32,6 +32,8 @@ function get_manifest() {
 }
 
 function get_config_digest() {
+    assert_pipeline_input "[EEE] [get_config_digest] Failed to provide pipeline input. Usage: cat | get_config_digest"
+
     cat | \
         jq --raw-output '.config.digest'
 }
@@ -137,6 +139,7 @@ function upload_manifest() {
     REPOSITORY=$2
     TAG=${3:-latest}
 
+    assert_pipeline_input "[EEE] [upload_manifest] Failed to provide pipeline input. Usage: cat | upload_manifest <registry> <repository> [<tag>]"
     assert_value "${REGISTRY}" "[ERROR] Failed to provide registry. Usage: cat | upload_manifest <registry> <repository> [<tag>]"
     assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: cat | upload_manifest <registry> <repository> [<tag>]"
 
@@ -181,6 +184,7 @@ function upload_config() {
     REGISTRY=$1
     REPOSITORY=$2
 
+    assert_pipeline_input "[EEE] [upload_config] Failed to provide pipeline input. Usage: cat | upload_config <registry> <repository>"
     assert_value "${REGISTRY}" "[ERROR] Failed to provide registry. Usage: cat | upload_config <registry> <repository>"
     assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: cat | upload_config <registry> <repository>"
 
@@ -274,6 +278,11 @@ tag_remote() {
     REPOSITORY=$2
     SRC=$3
     DST=$4
+
+    assert_value "${REGISTRY}" "[ERROR] Failed to provide registry. Usage: tag_remote <registry> <repository> <tag> <tag>"
+    assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: tag_remote <registry> <repository> <tag> <tag>"
+    assert_value "${SRC}" "[ERROR] Failed to provide source tag. Usage: tag_remote <registry> <repository> <tag> <tag>"
+    assert_value "${DST}" "[ERROR] Failed to provide destination tag. Usage: tag_remote <registry> <repository> <tag> <tag>"
 
     get_manifest "${REGISTRY}" "${REPOSITORY}" "${SRC}" | \
         upload_manifest "${REGISTRY}" "${REPOSITORY}" "${DST}"

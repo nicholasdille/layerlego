@@ -49,7 +49,7 @@ for LAYER in docker; do
     echo "Patch manifest"
     mv "${TEMP}/manifest.json" "${TEMP}/manifest.json.bak"
     cat "${TEMP}/manifest.json.bak" | \
-        append_layer_to_manifest "${LAYER_BLOB}" "${LAYER_SIZE}" "${MEDIA_TYPE_IMAGE}" \
+        append_layer_to_manifest "${LAYER_BLOB}" "${LAYER_SIZE}" \
     >"${TEMP}/manifest.json"
 
     echo "Patch config"
