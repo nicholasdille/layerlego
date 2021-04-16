@@ -7,7 +7,7 @@ function mount_config_blob() {
         jq --raw-output '.config.digest' | \
         while read -r DIGEST; do
             #echo "[mount_blobs] Mount config digest ${DIGEST}"
-            mount_digest join base "${DIGEST}"
+            mount_digest "${REGISTRY}" join base "${DIGEST}"
         done
 }
 

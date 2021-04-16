@@ -174,6 +174,8 @@ function mount_digest() {
     DIGEST=$4
 
     if ! check_digest "${REGISTRY}" "${REPOSITORY}" "${DIGEST}"; then
+        echo "[mount_digest] Mounting ${DIGEST} in ${REPOSITORY} from ${SOURCE}"
+
         curl "${REGISTRY}/v2/${REPOSITORY}/blobs/uploads/?mount=${DIGEST}&from=${SOURCE}" \
             --silent \
             --fail \

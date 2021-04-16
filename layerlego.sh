@@ -21,7 +21,7 @@ get_manifest "${REGISTRY}" base >"${TEMP}/manifest.json"
 get_config "${REGISTRY}" base >"${TEMP}/config.json"
 
 echo "Mounting layers"
-cat "${TEMP}/manifest.json" | mount_layer_blobs join base
+cat "${TEMP}/manifest.json" | mount_layer_blobs "${REGISTRY}" join base
 
 #for LAYER in docker docker-compose helm kubectl; do
 for LAYER in docker; do
