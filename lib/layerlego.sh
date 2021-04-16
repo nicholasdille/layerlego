@@ -1,6 +1,7 @@
 function mount_config_blob() {
-    REPOSITORY=$1
-    SOURCE=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    SOURCE=$3
 
     cat | \
         jq --raw-output '.config.digest' | \
@@ -11,30 +12,32 @@ function mount_config_blob() {
 }
 
 function mount_layer_blobs() {
-    REPOSITORY=$1
-    SOURCE=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    SOURCE=$3
 
     cat | \
         jq --raw-output '.layers[].digest' | \
         while read -r DIGEST; do
             #echo "[mount_layers] Mount layer digest ${DIGEST}"
-            mount_digest "${REPOSITORY}" "${SOURCE}" "${DIGEST}"
+            mount_digest "${REGISTRY}" "${REPOSITORY}" "${SOURCE}" "${DIGEST}"
         done
 }
 
 function mount_blobs() {
-    REPOSITORY=$1
-    SOURCE=$2
-    TAG=$3
+    REGISTRY=$1
+    REPOSITORY=$2
+    SOURCE=$3
+    TAG=$4
     : "${TAG:=latest}"
 
-    MANIFEST="$(get_manifest "${SOURCE}" "${TAG}")"
+    MANIFEST="$(get_manifest "${REGISTRY}" "${SOURCE}" "${TAG}")"
 
     echo -n "${MANIFEST}" | \
-        mount_config_blob "${REPOSITORY}" "${SOURCE}"
+        mount_config_blob "${REGISTRY}" "${REPOSITORY}" "${SOURCE}"
     
     echo -n "${MANIFEST}" | \
-        mount_layers_blobs "${REPOSITORY}" "${SOURCE}"
+        mount_layers_blobs "${REGISTRY}" "${REPOSITORY}" "${SOURCE}"
 }
 
 function get_blob_metadata() {

@@ -17,8 +17,8 @@ trap cleanup EXIT
 
 docker image build --file Dockerfile.base --cache-from "${REGISTRY}/base" --tag "${REGISTRY}/base" .
 docker image push "${REGISTRY}/base"
-get_manifest base >"${TEMP}/manifest.json"
-get_config base >"${TEMP}/config.json"
+get_manifest "${REGISTRY}" base >"${TEMP}/manifest.json"
+get_config "${REGISTRY}" base >"${TEMP}/config.json"
 
 echo "Mounting layers"
 cat "${TEMP}/manifest.json" | mount_layer_blobs join base
@@ -29,22 +29,23 @@ for LAYER in docker; do
     docker image push "${REGISTRY}/${LAYER}"
 
     MANIFEST_FILE="${TEMP}/${LAYER}.manifest.json"
-    get_manifest "${LAYER}" >"${MANIFEST_FILE}"
+    get_manifest "${REGISTRY}" "${LAYER}" >"${MANIFEST_FILE}"
     
     LAYER_BLOB="$(jq --raw-output '.layers[-1].digest' "${MANIFEST_FILE}")"
     LAYER_SIZE="$(jq --raw-output '.layers[-1].size' "${MANIFEST_FILE}")"
     CONFIG_BLOB="$(cat "${MANIFEST_FILE}" | get_config_digest)"
 
     CONFIG_FILE="${TEMP}/${LAYER}.config.json"
-    get_config_by_digest "${LAYER}" "${CONFIG_BLOB}" >"${CONFIG_FILE}"
+    get_config_by_digest "${REGISTRY}" "${LAYER}" "${CONFIG_BLOB}" >"${CONFIG_FILE}"
 
     LAYER_COMMAND=$(jq --raw-output '.history[-1]' "${CONFIG_FILE}")
     LAYER_DIFF=$(jq --raw-output '.rootfs.diff_ids[-1]' "${CONFIG_FILE}")
 
     echo "Mount layer"
-    mount_digest join "${LAYER}" "${LAYER_BLOB}"
+    mount_digest "${REGISTRY}" join "${LAYER}" "${LAYER_BLOB}"
 
     echo "Patch manifest"
+    # new function to append layer to manifest
     mv "${TEMP}/manifest.json" "${TEMP}/manifest.json.bak"
     cat "${TEMP}/manifest.json.bak" | \
         jq '.layers += [{"mediaType": $type, "size": $size | tonumber, "digest": $digest}]' \
@@ -54,6 +55,7 @@ for LAYER in docker; do
     >"${TEMP}/manifest.json"
 
     echo "Patch config"
+    # new function to append layer to config
     mv "${TEMP}/config.json" "${TEMP}/config.json.bak"
     cat "${TEMP}/config.json.bak" | \
         jq '.history += [$command | fromjson]' \
@@ -64,9 +66,10 @@ for LAYER in docker; do
 done
 
 echo "Upload config"
-cat "${TEMP}/config.json" | upload_config join
+cat "${TEMP}/config.json" | upload_config "${REGISTRY}" join
 
 echo "Update and upload manifest"
+# new function to update config in manifest
 cat "${TEMP}/manifest.json" | \
     update_config $(cat "${TEMP}/config.json" | get_blob_metadata) | \
-    upload_manifest join
+    upload_manifest "${REGISTRY}" join

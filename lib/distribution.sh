@@ -5,12 +5,13 @@ MEDIA_TYPE_CONFIG=application/vnd.docker.container.image.v1+json
 MEDIA_TYPE_LAYER=application/vnd.docker.image.rootfs.diff.tar.gzip
 
 function get_manifest() {
-    REPOSITORY=$1
-    TAG=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    TAG=$3
     : "${TAG:=latest}"
     #echo "[get_manifest] Getting manifest from registry ${REGISTRY} for repository ${REPOSITORY} with tag ${TAG}"
 
-    curl "http://${REGISTRY}/v2/${REPOSITORY}/manifests/${TAG}" \
+    curl "${REGISTRY}/v2/${REPOSITORY}/manifests/${TAG}" \
         --silent \
         --header "Accept: ${MEDIA_TYPE_MANIFEST_V2}"
 }
@@ -21,20 +22,22 @@ function get_config_digest() {
 }
 
 function get_config_by_digest() {
-    REPOSITORY=$1
-    DIGEST=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    DIGEST=$3
 
-    curl "http://${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}" \
+    curl "${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}" \
             --silent \
             --header "Accept: ${MEDIA_TYPE_CONFIG}"
 }
 
 function get_config() {
-    REPOSITORY=$1
-    TAG=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    TAG=$3
     : "${TAG:=latest}"
 
-    get_manifest "${REPOSITORY}" "${TAG}" | \
+    get_manifest "${REGISTRY}" "${REPOSITORY}" "${TAG}" | \
         get_config_digest | \
         xargs -I{} \
             curl "http://${REGISTRY}/v2/${REPOSITORY}/blobs/{}" \
@@ -43,11 +46,12 @@ function get_config() {
 }
 
 function check_digest() {
-    REPOSITORY=$1
-    DIGEST=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    DIGEST=$3
 
     #echo "[check_digest] Checking digest ${DIGEST} for repository ${REPOSITORY}"
-    if curl --silent --fail --request HEAD --head --output /dev/null "http://${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}"; then
+    if curl --silent --fail --request HEAD --head --output /dev/null "${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}"; then
         return 0
     else
         return 1
@@ -55,33 +59,35 @@ function check_digest() {
 }
 
 function assert_digest() {
-    REPOSITORY=$1
-    DIGEST=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    DIGEST=$3
 
     #echo "[assert_digest] Asserting digest ${DIGEST} for repository ${REPOSITORY}"
-    if ! check_digest "${REPOSITORY}" "${DIGEST}"; then
+    if ! check_digest "${REGISTRY}" "${REPOSITORY}" "${DIGEST}"; then
         echo "[ERROR] Unable to find digest ${DIGEST} for repository ${REPOSITORY}"
         exit 1
     fi
 }
 
 function upload_manifest() {
-    REPOSITORY=$1
-    TAG=$2
+    REGISTRY=$1
+    REPOSITORY=$2
+    TAG=$3
     : "${TAG:=latest}"
 
     MANIFEST=$(cat)
 
     echo "[upload_manifest] Checking config digest"
-    assert_digest "${REPOSITORY}" "$(echo "${MANIFEST}" | jq --raw-output '.config.digest')"
+    assert_digest "${REGISTRY}" "${REPOSITORY}" "$(echo "${MANIFEST}" | jq --raw-output '.config.digest')"
 
     for DIGEST in $(echo "${MANIFEST}" | jq --raw-output '.layers[].digest'); do
         echo "[upload_manifest] Checking layer digest "${DIGEST}
-        assert_digest "${REPOSITORY}" "${DIGEST}"
+        assert_digest "${REGISTRY}" "${REPOSITORY}" "${DIGEST}"
     done
 
     echo "[upload_manifest] Doing upload"
-    curl "http://${REGISTRY}/v2/${REPOSITORY}/manifests/${TAG}" \
+    curl "${REGISTRY}/v2/${REPOSITORY}/manifests/${TAG}" \
         --silent \
         --fail \
         --request PUT \
@@ -90,7 +96,8 @@ function upload_manifest() {
 }
 
 function get_upload_uuid() {
-    REPOSITORY=$1
+    REGISTRY=$1
+    REPOSITORY=$2
 
     >&2 echo "[get_upload_uuid] REPOSITORY=${REPOSITORY}"
     curl "${REGISTRY}/v2/${REPOSITORY}/blobs/uploads/" \
@@ -104,7 +111,8 @@ function get_upload_uuid() {
 }
 
 function upload_config() {
-    REPOSITORY=$1
+    REGISTRY=$1
+    REPOSITORY=$2
 
     >&2 echo "[upload_config] REPOSITORY=${REPOSITORY}"
 
@@ -112,13 +120,13 @@ function upload_config() {
     CONFIG_DIGEST="sha256:$(echo -n "${CONFIG}" | sha256sum | cut -d' ' -f1)"
 
     >&2 echo "[upload_config] Check existence of digest ${CONFIG_DIGEST} in repository ${REPOSITORY}"
-    if check_digest "${REPOSITORY}" "${CONFIG_DIGEST}"; then
+    if check_digest "${REGISTRY}" "${REPOSITORY}" "${CONFIG_DIGEST}"; then
         >&2 echo "[upload_config] Digest already exists"
         return
     fi
     >&2 echo "[upload_config] Does not exist yet"
 
-    UPLOAD_URL="$(get_upload_uuid "${REPOSITORY}")&digest=${CONFIG_DIGEST}"
+    UPLOAD_URL="$(get_upload_uuid "${REGISTRY}" "${REPOSITORY}")&digest=${CONFIG_DIGEST}"
     >&2 echo "[upload_config] URL is <${UPLOAD_URL}>"
 
     >&2 echo "[upload_config] Upload config"
@@ -131,22 +139,23 @@ function upload_config() {
 }
 
 function upload_blob() {
-    REPOSITORY=$1
-    LAYER=$2
-    TYPE=$3
+    REGISTRY=$1
+    REPOSITORY=$2
+    LAYER=$3
+    TYPE=$4
 
     >&2 echo "[upload_blob] REPOSITORY=${REPOSITORY}"
 
     BLOB_DIGEST="sha256:$(sha256sum "${LAYER}" | cut -d' ' -f1)"
 
     >&2 echo "[upload_blob] Check existence of digest ${BLOB_DIGEST} in repository ${REPOSITORY}"
-    if check_digest "${REPOSITORY}" "${BLOB_DIGEST}"; then
+    if check_digest "${REGISTRY}" "${REPOSITORY}" "${BLOB_DIGEST}"; then
         >&2 echo "[upload_blob] Digest already exists"
         return
     fi
     >&2 echo "[upload_blob] Does not exist yet"
 
-    UPLOAD_URL="$(get_upload_uuid "${REPOSITORY}")&digest=${BLOB_DIGEST}"
+    UPLOAD_URL="$(get_upload_uuid "${REGISTRY}" "${REPOSITORY}")&digest=${BLOB_DIGEST}"
     >&2 echo "[upload_blob] URL is <${UPLOAD_URL}>"
 
     >&2 echo "[upload_blob] Upload blob"
@@ -159,12 +168,13 @@ function upload_blob() {
 }
 
 function mount_digest() {
-    REPOSITORY=$1
-    SOURCE=$2
-    DIGEST=$3
+    REGISTRY=$1
+    REPOSITORY=$2
+    SOURCE=$3
+    DIGEST=$4
 
-    if ! check_digest "${REPOSITORY}" "${DIGEST}"; then
-        curl "http://${REGISTRY}/v2/${REPOSITORY}/blobs/uploads/?mount=${DIGEST}&from=${SOURCE}" \
+    if ! check_digest "${REGISTRY}" "${REPOSITORY}" "${DIGEST}"; then
+        curl "${REGISTRY}/v2/${REPOSITORY}/blobs/uploads/?mount=${DIGEST}&from=${SOURCE}" \
             --silent \
             --fail \
             --request POST

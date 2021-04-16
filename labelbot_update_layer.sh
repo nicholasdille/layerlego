@@ -17,8 +17,8 @@ trap cleanup EXIT
 
 docker image build --file Dockerfile.labelbot --cache-from "${REGISTRY}/labelbot" --tag "${REGISTRY}/labelbot" .
 docker image push "${REGISTRY}/labelbot"
-get_manifest labelbot >"${TEMP}/manifest.json"
-get_config labelbot >"${TEMP}/config.json"
+get_manifest "${REGISTRY}" labelbot >"${TEMP}/manifest.json"
+get_config "${REGISTRY}" labelbot >"${TEMP}/config.json"
 
 cat "${TEMP}/manifest.json" | jq .
 
@@ -52,7 +52,7 @@ REPOSITORY=labelbot
 curl -sH "Accept: ${MEDIA_TYPE_LAYER}" "${REGISTRY}/v2/${REPOSITORY}/blobs/${LAYER_DIGEST}" | tar -xzC "${TEMP}/${LAYER_DIGEST}"
 rm -rf "${TEMP}/${LAYER_DIGEST}/bin/bash"
 tar -czf "${TEMP}/labelbot.tar.gz" -C "${TEMP}/${LAYER_DIGEST}" .
-upload_blob labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
+upload_blob "${REGISTRY}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
 
 # new function to add layer to config
 ROOTFS_DIGEST=$(cat "${TEMP}/labelbot.tar.gz" | gunzip | sha256sum | cut -d' ' -f1)
@@ -63,7 +63,7 @@ cat "${TEMP}/config.json" | \
     >"${TEMP}/new_config.json"
 
 cat "${TEMP}/new_config.json" | \
-    upload_config labelbot
+    upload_config "${REGISTRY}" labelbot
 
 # new function to add layer to manifest
 LAYER_SIZE=$(stat --format=%s "${TEMP}/labelbot.tar.gz")
@@ -83,4 +83,4 @@ cat "${TEMP}/manifest.json" | \
     >"${TEMP}/new_manifest.json"
 
 cat "${TEMP}/new_manifest.json" | \
-    upload_manifest labelbot update
+    upload_manifest "${REGISTRY}" labelbot update

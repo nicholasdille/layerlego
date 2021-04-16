@@ -17,8 +17,8 @@ trap cleanup EXIT
 
 docker image build --file Dockerfile.labelbot --cache-from "${REGISTRY}/labelbot" --tag "${REGISTRY}/labelbot" .
 docker image push "${REGISTRY}/labelbot"
-get_manifest labelbot >"${TEMP}/manifest.json"
-get_config labelbot >"${TEMP}/config.json"
+get_manifest "${REGISTRY}" labelbot >"${TEMP}/manifest.json"
+get_config "${REGISTRY}" labelbot >"${TEMP}/config.json"
 
 LAYER_DIGEST=$(
     cat "${TEMP}/manifest.json" | \
@@ -31,7 +31,7 @@ curl -sH "Accept: ${MEDIA_TYPE_LAYER}" "${REGISTRY}/v2/${REPOSITORY}/blobs/${LAY
 mkdir -p "${TEMP}/labelbot"
 echo "bar" >"${TEMP}/labelbot/foo"
 tar -czf "${TEMP}/labelbot.tar.gz" "${TEMP}/labelbot"
-upload_blob labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
+upload_blob "${REGISTRY}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
 
 # new function for layer index with custom filter
 LAYER_INDEX=$(
@@ -59,7 +59,7 @@ cat "${TEMP}/config.json" | \
     >"${TEMP}/new_config.json"
 
 cat "${TEMP}/new_config.json" | \
-        upload_config labelbot
+        upload_config "${REGISTRY}" labelbot
 
 # new function to add layer to manifest
 LAYER_SIZE=$(stat --format=%s "${TEMP}/labelbot.tar.gz")
@@ -79,4 +79,4 @@ cat "${TEMP}/manifest.json" | \
     >"${TEMP}/new_manifest.json"
 
 cat "${TEMP}/new_manifest.json" | \
-    upload_manifest labelbot new
+    upload_manifest "${REGISTRY}" labelbot new
