@@ -6,6 +6,8 @@ if test "$(docker container ls --filter name=registry | wc -l)" -eq 1; then
     docker container run --detach --name registry --publish "${REGISTRY}:5000" registry
 fi
 
+source "lib/common.sh"
+source "lib/auth.sh"
 source "lib/distribution.sh"
 source "lib/layerlego.sh"
 
@@ -24,58 +26,44 @@ LAYER_DIGEST=$(
     cat "${TEMP}/manifest.json" | \
         jq --raw-output '.layers[-1].digest'
 )
-# new function to get a blob
-REPOSITORY=labelbot
-curl -sH "Accept: ${MEDIA_TYPE_LAYER}" "${REGISTRY}/v2/${REPOSITORY}/blobs/${LAYER_DIGEST}" | sha256sum
-curl -sH "Accept: ${MEDIA_TYPE_LAYER}" "${REGISTRY}/v2/${REPOSITORY}/blobs/${LAYER_DIGEST}" | gunzip | sha256sum
+get_blob "${REGISTRY}" labelbot "${LAYER_DIGEST}" >"${TEMP}/${LAYER_DIGEST}"
+cat "${TEMP}/${LAYER_DIGEST}" | sha256sum
+cat "${TEMP}/${LAYER_DIGEST}" | gunzip | sha256sum
 mkdir -p "${TEMP}/labelbot"
 echo "bar" >"${TEMP}/labelbot/foo"
 tar -czf "${TEMP}/labelbot.tar.gz" "${TEMP}/labelbot"
 upload_blob "${REGISTRY}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
 
-# new function for layer index with custom filter
 LAYER_INDEX=$(
     cat "${TEMP}/config.json" | \
-        jq '.history | to_entries[] | select(.value.created_by | startswith("LABEL foo=")) | .key'
+        get_layer_index_by_command "LABEL foo="
 )
 echo "label layer index: ${LAYER_INDEX}"
 
-# new function for layer count with optional filter
 EMPTY_LAYER_OFFSET=$(
     cat "${TEMP}/config.json" | \
-        jq --arg index "${LAYER_INDEX}" '.history | to_entries | map(select(.key < $index)) | map(select(.value.empty_layer == true)) | length'
+        count_empty_layers_before_index "${LAYER_INDEX}"
 )
 echo "empty layer offset: ${EMPTY_LAYER_OFFSET}"
 
 LAYER_INDEX=$(( ${LAYER_INDEX} - ${EMPTY_LAYER_OFFSET} + 1 ))
 echo "insert at: ${LAYER_INDEX}"
 
-# new function to add layer to config
 ROOTFS_DIGEST=$(cat "${TEMP}/labelbot.tar.gz" | gunzip | sha256sum | cut -d' ' -f1)
 cat "${TEMP}/config.json" | \
-    jq '.rootfs.diff_ids = .rootfs.diff_ids[0:($index | tonumber)] + ["sha256:\($digest)"] + .rootfs.diff_ids[($index | tonumber):]' \
-            --arg index "${LAYER_INDEX}" \
-            --arg digest "${ROOTFS_DIGEST}" \
+    insert_layer_in_config "${LAYER_INDEX}" "${ROOTFS_DIGEST}" \
     >"${TEMP}/new_config.json"
 
 cat "${TEMP}/new_config.json" | \
-        upload_config "${REGISTRY}" labelbot
+    upload_config "${REGISTRY}" labelbot
 
-# new function to add layer to manifest
 LAYER_SIZE=$(stat --format=%s "${TEMP}/labelbot.tar.gz")
 LAYER_DIGEST=$(sha256sum "${TEMP}/labelbot.tar.gz" | cut -d' ' -f1)
 CONFIG_SIZE=$(stat --format=%s "${TEMP}/new_config.json")
 CONFIG_DIGEST=$(head -c -1 "${TEMP}/new_config.json" | sha256sum | cut -d' ' -f1)
 cat "${TEMP}/manifest.json" | \
-    jq '.layers = .layers[0:($index | tonumber)] + [{"mediaType": $type, "size": $size | tonumber, "digest": "sha256:\($digest)"}] + .layers[($index | tonumber):]' \
-        --arg index "${LAYER_INDEX}" \
-        --arg type "${MEDIA_TYPE_LAYER}" \
-        --arg size "${LAYER_SIZE}" \
-        --arg digest "${LAYER_DIGEST}" | \
-    jq '.config = {"mediaType":$type,"size":$size | tonumber,"digest":"sha256:\($digest)"}' \
-        --arg type "${MEDIA_TYPE_CONFIG}" \
-        --arg size "${CONFIG_SIZE}" \
-        --arg digest "${CONFIG_DIGEST}" \
+    insert_layer_in_manifest "${LAYER_INDEX}" "${LAYER_DIGEST}" "${LAYER_SIZE}" | \
+    update_config "${CONFIG_DIGEST}" "${CONFIG_SIZE}" \
     >"${TEMP}/new_manifest.json"
 
 cat "${TEMP}/new_manifest.json" | \

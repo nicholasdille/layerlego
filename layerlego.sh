@@ -47,23 +47,15 @@ for LAYER in docker; do
     mount_digest "${REGISTRY}" join "${LAYER}" "${LAYER_BLOB}"
 
     echo "Patch manifest"
-    # new function to append layer to manifest
     mv "${TEMP}/manifest.json" "${TEMP}/manifest.json.bak"
     cat "${TEMP}/manifest.json.bak" | \
-        jq '.layers += [{"mediaType": $type, "size": $size | tonumber, "digest": $digest}]' \
-            --arg type "${MEDIA_TYPE_IMAGE}" \
-            --arg digest "${LAYER_BLOB}" \
-            --arg size "${LAYER_SIZE}" \
+        append_layer_to_manifest "${LAYER_BLOB}" "${LAYER_SIZE}" "${MEDIA_TYPE_IMAGE}" \
     >"${TEMP}/manifest.json"
 
     echo "Patch config"
-    # new function to append layer to config
     mv "${TEMP}/config.json" "${TEMP}/config.json.bak"
     cat "${TEMP}/config.json.bak" | \
-        jq '.history += [$command | fromjson]' \
-            --arg command "${LAYER_COMMAND}" | \
-        jq '.rootfs.diff_ids += [$diff]' \
-            --arg diff "${LAYER_DIFF}" \
+        append_layer_to_config "${LAYER_DIFF}" "${LAYER_COMMAND}" \
     >"${TEMP}/config.json"
 done
 
@@ -71,7 +63,6 @@ echo "Upload config"
 cat "${TEMP}/config.json" | upload_config "${REGISTRY}" join
 
 echo "Update and upload manifest"
-# new function to update config in manifest
 cat "${TEMP}/manifest.json" | \
     update_config $(cat "${TEMP}/config.json" | get_blob_metadata) | \
     upload_manifest "${REGISTRY}" join

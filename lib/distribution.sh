@@ -4,7 +4,7 @@ MEDIA_TYPE_MANIFEST_LIST=application/vnd.docker.distribution.manifest.list.v2+js
 MEDIA_TYPE_CONFIG=application/vnd.docker.container.image.v1+json
 MEDIA_TYPE_LAYER=application/vnd.docker.image.rootfs.diff.tar.gzip
 
-function parse_image {
+function parse_image() {
     local image=$1
 
     assert_value "${image}" "[ERROR] Failed to provide image. Usage: parse_image <image>"
@@ -45,6 +45,10 @@ function get_config_by_digest() {
     assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: get_config_by_digest <registry> <repository> <digest>"
     assert_value "${DIGEST}" "[ERROR] Failed to provide digest. Usage: get_config_by_digest <registry> <repository> <digest>"
 
+    if test "${DIGEST:0:7}" != "sha256:"; then
+        DIGEST="sha256:${DIGEST}"
+    fi
+
     curl "${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}" \
             --silent \
             --header "Accept: ${MEDIA_TYPE_CONFIG}"
@@ -75,6 +79,10 @@ function check_digest() {
     assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: check_digest <registry> <repository> <digest>"
     assert_value "${DIGEST}" "[ERROR] Failed to provide digest. Usage: check_digest <registry> <repository> <digest>"
 
+    if test "${DIGEST:0:7}" != "sha256:"; then
+        DIGEST="sha256:${DIGEST}"
+    fi
+
     >&2 echo "[check_digest] Checking digest ${DIGEST} for repository ${REPOSITORY}"
 
     if curl --silent --fail --request HEAD --head --output /dev/null "${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}"; then
@@ -93,12 +101,35 @@ function assert_digest() {
     assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: assert_digest <registry> <repository> <digest>"
     assert_value "${DIGEST}" "[ERROR] Failed to provide digest. Usage: assert_digest <registry> <repository> <digest>"
 
+    if test "${DIGEST:0:7}" != "sha256:"; then
+        DIGEST="sha256:${DIGEST}"
+    fi
+
     >&2 echo "[assert_digest] Asserting digest ${DIGEST} for repository ${REPOSITORY}"
 
     if ! check_digest "${REGISTRY}" "${REPOSITORY}" "${DIGEST}"; then
         echo "[ERROR] Unable to find digest ${DIGEST} for repository ${REPOSITORY}"
         exit 1
     fi
+}
+
+function get_blob() {
+    REGISTRY=$1
+    REPOSITORY=$2
+    DIGEST=$3
+    TYPE=${4:-${MEDIA_TYPE_LAYER}}
+
+    assert_value "${REGISTRY}" "[ERROR] Failed to provide registry. Usage: get_blob <registry> <repository> <digest> [<type>]"
+    assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: get_blob <registry> <repository> <digest> [<type>]"
+    assert_value "${DIGEST}" "[ERROR] Failed to provide digest. Usage: get_blob <registry> <repository> <digest> [<type>]"
+
+    if test "${DIGEST:0:7}" != "sha256:"; then
+        DIGEST="sha256:${DIGEST}"
+    fi
+
+    >&2 echo "[get_blob] Fetching blob with digest ${DIGEST} for repository ${REPOSITORY}"
+
+    curl -sH "Accept: ${MEDIA_TYPE_LAYER}" "${REGISTRY}/v2/${REPOSITORY}/blobs/${DIGEST}"
 }
 
 function upload_manifest() {
@@ -221,6 +252,10 @@ function mount_digest() {
     assert_value "${REPOSITORY}" "[ERROR] Failed to provide repository. Usage: mount_digest <registry> <repository> <tag> <digest>"
     assert_value "${SOURCE}" "[ERROR] Failed to provide source tag. Usage: mount_digest <registry> <repository> <tag> <digest>"
     assert_value "${DIGEST}" "[ERROR] Failed to provide blob digest. Usage: mount_digest <registry> <repository> <tag> <digest>"
+
+    if test "${DIGEST:0:7}" != "sha256:"; then
+        DIGEST="sha256:${DIGEST}"
+    fi
 
     >&2 echo "[mount_digest] START"
 
