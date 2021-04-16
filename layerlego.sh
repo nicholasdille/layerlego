@@ -1,9 +1,9 @@
 #!/bin/bash
 set -o errexit
 
-REGISTRY=127.0.0.1:5000
+registry=127.0.0.1:5000
 if test "$(docker container ls --filter name=registry | wc -l)" -eq 1; then
-    docker container run --detach --name registry --publish "${REGISTRY}:5000" registry
+    docker container run --detach --name registry --publish "${registry}:5000" registry
 fi
 
 source "lib/common.sh"
@@ -17,52 +17,52 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-docker image build --file Dockerfile.base --cache-from "${REGISTRY}/base" --tag "${REGISTRY}/base" .
-docker image push "${REGISTRY}/base"
-get_manifest "${REGISTRY}" base >"${TEMP}/manifest.json"
-get_config "${REGISTRY}" base >"${TEMP}/config.json"
+docker image build --file Dockerfile.base --cache-from "${registry}/base" --tag "${registry}/base" .
+docker image push "${registry}/base"
+get_manifest "${registry}" base >"${TEMP}/manifest.json"
+get_config "${registry}" base >"${TEMP}/config.json"
 
 echo "Mounting layers"
-cat "${TEMP}/manifest.json" | mount_layer_blobs "${REGISTRY}" join base
+cat "${TEMP}/manifest.json" | mount_layer_blobs "${registry}" join base
 
 #for LAYER in docker docker-compose helm kubectl; do
 for LAYER in docker; do
-    docker image build --file "Dockerfile.${LAYER}" --cache-from "${REGISTRY}/${LAYER}" --tag "${REGISTRY}/${LAYER}" .
-    docker image push "${REGISTRY}/${LAYER}"
+    docker image build --file "Dockerfile.${LAYER}" --cache-from "${registry}/${LAYER}" --tag "${registry}/${LAYER}" .
+    docker image push "${registry}/${LAYER}"
 
-    MANIFEST_FILE="${TEMP}/${LAYER}.manifest.json"
-    get_manifest "${REGISTRY}" "${LAYER}" >"${MANIFEST_FILE}"
+    manifest_file="${TEMP}/${LAYER}.manifest.json"
+    get_manifest "${registry}" "${LAYER}" >"${manifest_file}"
     
-    LAYER_BLOB="$(jq --raw-output '.layers[-1].digest' "${MANIFEST_FILE}")"
-    LAYER_SIZE="$(jq --raw-output '.layers[-1].size' "${MANIFEST_FILE}")"
-    CONFIG_BLOB="$(cat "${MANIFEST_FILE}" | get_config_digest)"
+    layer_blob="$(jq --raw-output '.layers[-1].digest' "${manifest_file}")"
+    layer_size="$(jq --raw-output '.layers[-1].size' "${manifest_file}")"
+    config_blob="$(cat "${manifest_file}" | get_config_digest)"
 
-    CONFIG_FILE="${TEMP}/${LAYER}.config.json"
-    get_config_by_digest "${REGISTRY}" "${LAYER}" "${CONFIG_BLOB}" >"${CONFIG_FILE}"
+    config_file="${TEMP}/${LAYER}.config.json"
+    get_config_by_digest "${registry}" "${LAYER}" "${config_blob}" >"${config_file}"
 
-    LAYER_COMMAND=$(jq --raw-output '.history[-1]' "${CONFIG_FILE}")
-    LAYER_DIFF=$(jq --raw-output '.rootfs.diff_ids[-1]' "${CONFIG_FILE}")
+    layer_command=$(jq --raw-output '.history[-1]' "${config_file}")
+    layer_diff=$(jq --raw-output '.rootfs.diff_ids[-1]' "${config_file}")
 
     echo "Mount layer"
-    mount_digest "${REGISTRY}" join "${LAYER}" "${LAYER_BLOB}"
+    mount_digest "${registry}" join "${LAYER}" "${layer_blob}"
 
     echo "Patch manifest"
     mv "${TEMP}/manifest.json" "${TEMP}/manifest.json.bak"
     cat "${TEMP}/manifest.json.bak" | \
-        append_layer_to_manifest "${LAYER_BLOB}" "${LAYER_SIZE}" \
+        append_layer_to_manifest "${layer_blob}" "${layer_size}" \
     >"${TEMP}/manifest.json"
 
     echo "Patch config"
     mv "${TEMP}/config.json" "${TEMP}/config.json.bak"
     cat "${TEMP}/config.json.bak" | \
-        append_layer_to_config "${LAYER_DIFF}" "${LAYER_COMMAND}" \
+        append_layer_to_config "${layer_diff}" "${layer_command}" \
     >"${TEMP}/config.json"
 done
 
 echo "Upload config"
-cat "${TEMP}/config.json" | upload_config "${REGISTRY}" join
+cat "${TEMP}/config.json" | upload_config "${registry}" join
 
 echo "Update and upload manifest"
 cat "${TEMP}/manifest.json" | \
     update_config $(cat "${TEMP}/config.json" | get_blob_metadata) | \
-    upload_manifest "${REGISTRY}" join
+    upload_manifest "${registry}" join

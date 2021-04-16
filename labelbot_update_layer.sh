@@ -1,9 +1,9 @@
 #!/bin/bash
 set -o errexit
 
-REGISTRY=127.0.0.1:5000
+registry=127.0.0.1:5000
 if test "$(docker container ls --filter name=registry | wc -l)" -eq 1; then
-    docker container run --detach --name registry --publish "${REGISTRY}:5000" registry
+    docker container run --detach --name registry --publish "${registry}:5000" registry
 fi
 
 source "lib/common.sh"
@@ -17,57 +17,57 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-docker image build --file Dockerfile.labelbot --cache-from "${REGISTRY}/labelbot" --tag "${REGISTRY}/labelbot" .
-docker image push "${REGISTRY}/labelbot"
-get_manifest "${REGISTRY}" labelbot >"${TEMP}/manifest.json"
-get_config "${REGISTRY}" labelbot >"${TEMP}/config.json"
+docker image build --file Dockerfile.labelbot --cache-from "${registry}/labelbot" --tag "${registry}/labelbot" .
+docker image push "${registry}/labelbot"
+get_manifest "${registry}" labelbot >"${TEMP}/manifest.json"
+get_config "${registry}" labelbot >"${TEMP}/config.json"
 
 cat "${TEMP}/manifest.json" | jq .
 
-LAYER_INDEX=$(
+layer_index=$(
     cat "${TEMP}/config.json" | \
         get_layer_index_by_command "LABEL foo="
 )
-LAYER_INDEX=$(( ${LAYER_INDEX} + 1 ))
-echo "label layer index: ${LAYER_INDEX}"
+layer_index=$(( ${layer_index} + 1 ))
+echo "label layer index: ${layer_index}"
 
-EMPTY_LAYER_OFFSET=$(
+empty_layer_offset=$(
     cat "${TEMP}/config.json" | \
-        count_empty_layers_before_index "${LAYER_INDEX}"
+        count_empty_layers_before_index "${layer_index}"
 )
-echo "empty layer offset: ${EMPTY_LAYER_OFFSET}"
+echo "empty layer offset: ${empty_layer_offset}"
 
-LAYER_INDEX=$(( ${LAYER_INDEX} - ${EMPTY_LAYER_OFFSET} ))
-echo "modify at: ${LAYER_INDEX}"
+layer_index=$(( ${layer_index} - ${empty_layer_offset} ))
+echo "modify at: ${layer_index}"
 
-LAYER_DIGEST=$(
+layer_digest=$(
     cat "${TEMP}/manifest.json" | \
-        get_layer_digest_by_index "${LAYER_INDEX}"
+        get_layer_digest_by_index "${layer_index}"
 )
-echo "get layer digest: ${LAYER_DIGEST}"
+echo "get layer digest: ${layer_digest}"
 
-mkdir -p "${TEMP}/${LAYER_DIGEST}"
-get_blob "${REGISTRY}" labelbot "${LAYER_DIGEST}" | tar -xzC "${TEMP}/${LAYER_DIGEST}"
-rm -rf "${TEMP}/${LAYER_DIGEST}/bin/bash"
-tar -czf "${TEMP}/labelbot.tar.gz" -C "${TEMP}/${LAYER_DIGEST}" .
-upload_blob "${REGISTRY}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
+mkdir -p "${TEMP}/${layer_digest}"
+get_blob "${registry}" labelbot "${layer_digest}" | tar -xzC "${TEMP}/${layer_digest}"
+rm -rf "${TEMP}/${layer_digest}/bin/bash"
+tar -czf "${TEMP}/labelbot.tar.gz" -C "${TEMP}/${layer_digest}" .
+upload_blob "${registry}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
 
-ROOTFS_DIGEST=$(cat "${TEMP}/labelbot.tar.gz" | gunzip | sha256sum | cut -d' ' -f1)
+rootfs_digest=$(cat "${TEMP}/labelbot.tar.gz" | gunzip | sha256sum | cut -d' ' -f1)
 cat "${TEMP}/config.json" | \
-    replace_layer_in_config "${LAYER_INDEX}" "${ROOTFS_DIGEST}" \
+    replace_layer_in_config "${layer_index}" "${rootfs_digest}" \
     >"${TEMP}/new_config.json"
 
 cat "${TEMP}/new_config.json" | \
-    upload_config "${REGISTRY}" labelbot
+    upload_config "${registry}" labelbot
 
-LAYER_SIZE=$(stat --format=%s "${TEMP}/labelbot.tar.gz")
-LAYER_DIGEST=$(sha256sum "${TEMP}/labelbot.tar.gz" | cut -d' ' -f1)
-CONFIG_SIZE=$(stat --format=%s "${TEMP}/new_config.json")
-CONFIG_DIGEST=$(head -c -1 "${TEMP}/new_config.json" | sha256sum | cut -d' ' -f1)
+layer_size=$(stat --format=%s "${TEMP}/labelbot.tar.gz")
+layer_digest=$(sha256sum "${TEMP}/labelbot.tar.gz" | cut -d' ' -f1)
+config_size=$(stat --format=%s "${TEMP}/new_config.json")
+config_digest=$(head -c -1 "${TEMP}/new_config.json" | sha256sum | cut -d' ' -f1)
 cat "${TEMP}/manifest.json" | \
-    replace_layer_in_manifest "${LAYER_INDEX}" "${LAYER_DIGEST}" "${LAYER_SIZE}" | \
-    update_config "${CONFIG_DIGEST}" "${CONFIG_SIZE}" \
+    replace_layer_in_manifest "${layer_index}" "${layer_digest}" "${layer_size}" | \
+    update_config "${config_digest}" "${config_size}" \
     >"${TEMP}/new_manifest.json"
 
 cat "${TEMP}/new_manifest.json" | \
-    upload_manifest "${REGISTRY}" labelbot update
+    upload_manifest "${registry}" labelbot update
