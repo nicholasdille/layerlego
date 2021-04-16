@@ -6,6 +6,8 @@ if test "$(docker container ls --filter name=registry | wc -l)" -eq 1; then
     docker container run --detach --name registry --publish "${REGISTRY}:5000" registry
 fi
 
+source "lib/common.sh"
+source "lib/auth.sh"
 source "lib/distribution.sh"
 source "lib/layerlego.sh"
 

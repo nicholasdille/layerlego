@@ -4,14 +4,16 @@ MEDIA_TYPE_MANIFEST_LIST=application/vnd.docker.distribution.manifest.list.v2+js
 MEDIA_TYPE_CONFIG=application/vnd.docker.container.image.v1+json
 MEDIA_TYPE_LAYER=application/vnd.docker.image.rootfs.diff.tar.gzip
 
-function assert_value {
-    VALUE=$1
-    MESSAGE=$2
+function parse_image {
+    local image=$1
 
-    if test -z "${VALUE}"; then
-        echo "${MESSAGE}"
-        exit 1
-    fi
+    assert_value "${image}" "[ERROR] Failed to provide image. Usage: parse_image <image>"
+
+    local registry=$(echo -n "${image}" | cut -d'/' -f1)
+    local repository=$(echo -n "${image}" | cut -d'/' -f2-)
+    local tag=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f2)
+
+    echo "registry=${registry} repository=${repository} tag=${tag}"
 }
 
 function get_manifest() {
@@ -230,4 +232,14 @@ function mount_digest() {
             --fail \
             --request POST
     fi
+}
+
+tag_remote() {
+    REGISTRY=$1
+    REPOSITORY=$2
+    SRC=$3
+    DST=$4
+
+    get_manifest "${REGISTRY}" "${REPOSITORY}" "${SRC}" | \
+        upload_manifest "${REGISTRY}" "${REPOSITORY}" "${DST}"
 }
