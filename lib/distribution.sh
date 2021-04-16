@@ -1,7 +1,14 @@
+#!/bin/bash
+
+# shellcheck disable=SC2034
 MEDIA_TYPE_MANIFEST_V1=application/vnd.docker.distribution.manifest.v1+json
+# shellcheck disable=SC2034
 MEDIA_TYPE_MANIFEST_V2=application/vnd.docker.distribution.manifest.v2+json
+# shellcheck disable=SC2034
 MEDIA_TYPE_MANIFEST_LIST=application/vnd.docker.distribution.manifest.list.v2+json
+# shellcheck disable=SC2034
 MEDIA_TYPE_CONFIG=application/vnd.docker.container.image.v1+json
+# shellcheck disable=SC2034
 MEDIA_TYPE_LAYER=application/vnd.docker.image.rootfs.diff.tar.gzip
 
 function parse_image() {
@@ -9,9 +16,12 @@ function parse_image() {
 
     assert_value "${image}" "[ERROR] Failed to provide image. Usage: parse_image <image>"
 
-    local registry=$(echo -n "${image}" | cut -d'/' -f1)
-    local repository=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f1)
-    local tag=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f2)
+    local registry
+    registry=$(echo -n "${image}" | cut -d'/' -f1)
+    local repository
+    repository=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f1)
+    local tag
+    tag=$(echo -n "${image}" | cut -d'/' -f2- | cut -d':' -f2)
 
     echo "registry=${registry} repository=${repository} tag=${tag}"
 }
@@ -131,7 +141,7 @@ function get_blob() {
 
     >&2 echo "[get_blob] Fetching blob with digest ${digest} for repository ${repository}"
 
-    curl -sH "Accept: ${TYPE}" "${registry}/v2/${repository}/blobs/${digest}"
+    curl -sH "Accept: ${type}" "${registry}/v2/${repository}/blobs/${digest}"
 }
 
 function upload_manifest() {
@@ -143,13 +153,14 @@ function upload_manifest() {
     assert_value "${registry}" "[ERROR] Failed to provide registry. Usage: cat | upload_manifest <registry> <repository> [<tag>]"
     assert_value "${repository}" "[ERROR] Failed to provide repository. Usage: cat | upload_manifest <registry> <repository> [<tag>]"
 
-    local manifest=$(cat)
+    local manifest
+    manifest=$(cat)
 
     >&2 echo "[upload_manifest] Checking config digest"
     assert_digest "${registry}" "${repository}" "$(echo "${manifest}" | jq --raw-output '.config.digest')"
 
     for digest in $(echo "${manifest}" | jq --raw-output '.layers[].digest'); do
-        >&2 echo "[upload_manifest] Checking layer digest "${digest}
+        >&2 echo "[upload_manifest] Checking layer digest ${digest}"
         assert_digest "${registry}" "${repository}" "${digest}"
     done
 
@@ -190,8 +201,10 @@ function upload_config() {
 
     >&2 echo "[upload_config] repository=${repository}"
 
-    local config="$(cat)"
-    local config_digest="sha256:$(echo -n "${config}" | sha256sum | cut -d' ' -f1)"
+    local config
+    config="$(cat)"
+    local config_digest
+    config_digest="sha256:$(echo -n "${config}" | sha256sum | cut -d' ' -f1)"
 
     >&2 echo "[upload_config] Check existence of digest ${config_digest} in repository ${repository}"
     if check_digest "${registry}" "${repository}" "${config_digest}"; then
@@ -200,7 +213,8 @@ function upload_config() {
     fi
     >&2 echo "[upload_config] Does not exist yet"
 
-    local upload_url="$(get_upload_uuid "${registry}" "${repository}")&digest=${config_digest}"
+    local upload_url
+    upload_url="$(get_upload_uuid "${registry}" "${repository}")&digest=${config_digest}"
     >&2 echo "[upload_config] URL is <${upload_url}>"
 
     >&2 echo "[upload_config] Upload config"
@@ -218,7 +232,7 @@ function upload_blob() {
     local layer=$3
     local type=$4
 
-    >&2 echo "[upload_blob] Got $@"
+    >&2 echo "[upload_blob] Got $*"
 
     assert_value "${registry}" "[ERROR] Failed to provide registry. Usage: upload_blob <registry> <repository> <file> <type>"
     assert_value "${repository}" "[ERROR] Failed to provide repository. Usage: upload_blob <registry> <repository> <file> <type>"
@@ -236,7 +250,8 @@ function upload_blob() {
     fi
     >&2 echo "[upload_blob] Does not exist yet"
 
-    local upload_url="$(get_upload_uuid "${registry}" "${repository}")&digest=${blob_digest}"
+    local upload_url
+    upload_url="$(get_upload_uuid "${registry}" "${repository}")&digest=${blob_digest}"
     >&2 echo "[upload_blob] URL is <${upload_url}>"
 
     >&2 echo "[upload_blob] Upload blob"

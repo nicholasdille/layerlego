@@ -1,3 +1,5 @@
+#!/bin/bash
+
 function mount_config_blob() {
     local registry=$1
     local repository=$2
@@ -50,7 +52,8 @@ function mount_blobs() {
 
     >&2 echo "[mount_blobs] Mount config and all layers from ${source}:${tag} to ${repository}"
 
-    local manifest="$(get_manifest "${registry}" "${source}" "${tag}")"
+    local manifest
+    manifest="$(get_manifest "${registry}" "${source}" "${tag}")"
 
     echo -n "${manifest}" | \
         mount_config_blob "${registry}" "${repository}" "${source}"
@@ -61,12 +64,15 @@ function mount_blobs() {
 
 function get_blob_metadata() {
     >&2 echo "[get_blob_metadata]"
-    local blob="$(cat)"
+    local blob
+    blob="$(cat)"
 
     assert_pipeline_input "[EEE] [get_blob_metadata] Failed to provide pipeline input. Usage: cat | get_blob_metadata"
 
-    local config_digest="sha256:$(echo -n "${blob}" | sha256sum | cut -d' ' -f1)"
-    local config_size="$(echo -n "${blob}" | wc -c)"
+    local config_digest
+    config_digest="sha256:$(echo -n "${blob}" | sha256sum | cut -d' ' -f1)"
+    local config_size
+    config_size="$(echo -n "${blob}" | wc -c)"
 
     echo "${config_digest} ${config_size}"
 }

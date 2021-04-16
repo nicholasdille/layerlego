@@ -1,3 +1,5 @@
+#!/bin/bash
+
 function assert_value {
     value=$1
     message=$2

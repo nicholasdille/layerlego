@@ -23,10 +23,10 @@ get_manifest "${registry}" base >"${TEMP}/manifest.json"
 get_config "${registry}" base >"${TEMP}/config.json"
 
 echo "Mounting layers"
+# shellcheck disable=SC2002
 cat "${TEMP}/manifest.json" | mount_layer_blobs "${registry}" join base
 
-#for LAYER in docker docker-compose helm kubectl; do
-for LAYER in docker; do
+for LAYER in docker docker-compose helm kubectl; do
     docker image build --file "Dockerfile.${LAYER}" --cache-from "${registry}/${LAYER}" --tag "${registry}/${LAYER}" .
     docker image push "${registry}/${LAYER}"
 
@@ -35,6 +35,7 @@ for LAYER in docker; do
     
     layer_blob="$(jq --raw-output '.layers[-1].digest' "${manifest_file}")"
     layer_size="$(jq --raw-output '.layers[-1].size' "${manifest_file}")"
+    # shellcheck disable=SC2002
     config_blob="$(cat "${manifest_file}" | get_config_digest)"
 
     config_file="${TEMP}/${LAYER}.config.json"
@@ -48,21 +49,25 @@ for LAYER in docker; do
 
     echo "Patch manifest"
     mv "${TEMP}/manifest.json" "${TEMP}/manifest.json.bak"
+    # shellcheck disable=SC2002
     cat "${TEMP}/manifest.json.bak" | \
         append_layer_to_manifest "${layer_blob}" "${layer_size}" \
     >"${TEMP}/manifest.json"
 
     echo "Patch config"
     mv "${TEMP}/config.json" "${TEMP}/config.json.bak"
+    # shellcheck disable=SC2002
     cat "${TEMP}/config.json.bak" | \
         append_layer_to_config "${layer_diff}" "${layer_command}" \
     >"${TEMP}/config.json"
 done
 
 echo "Upload config"
+# shellcheck disable=SC2002
 cat "${TEMP}/config.json" | upload_config "${registry}" join
 
 echo "Update and upload manifest"
+# shellcheck disable=SC2002
 cat "${TEMP}/manifest.json" | \
-    update_config $(cat "${TEMP}/config.json" | get_blob_metadata) | \
+    update_config "$(cat "${TEMP}/config.json" | get_blob_metadata)" | \
     upload_manifest "${registry}" join

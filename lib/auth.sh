@@ -1,3 +1,5 @@
+#!/bin/bash
+
 : "${DOCKER_CONFIG:=${HOME/.docker}}"
 
 get_docker_auth() {
@@ -5,6 +7,7 @@ get_docker_auth() {
 
     >&2 echo "[get_docker_auth] Using registry ${registry}"
 
+    # shellcheck disable=SC2002
     cat "${DOCKER_CONFIG}/config.json" | \
         jq --raw-output --arg registry "${registry}" '.auths | to_entries[] | select(.key == $registry) | .value.auth' | \
         base64 -d
@@ -42,11 +45,13 @@ get_token() {
     fi
     >&2 echo "[get_token] Using schema ${schema}."
 
-    local temp_dir=$(mktemp -d)
+    local temp_dir
+    temp_dir=$(mktemp -d)
     >&2 echo "[get_token] Using temporary directory ${temp_dir}."
 
-    local http_code=$(
-        curl ${schema}://${registry}/v2/ \
+    local http_code
+    http_code=$(
+        curl "${schema}://${registry}/v2/" \
             --silent \
             --write-out "%{http_code}" \
             --output "${temp_dir}/body.txt" \
@@ -57,7 +62,9 @@ get_token() {
         401)
             >&2 echo "[get_token] Authentication required"
 
-            local www_authenticate=$(
+            local www_authenticate
+            # shellcheck disable=SC2002
+            www_authenticate=$(
                 cat "${temp_dir}/header.txt" | \
                     grep -iE "^Www-Authenticate: " | \
                     tr -d '\r'
@@ -65,25 +72,30 @@ get_token() {
             >&2 echo "[get_token] Got www_authenticate ${www_authenticate}."
 
             if test -z "${www_authenticate}"; then
-                local service_info=$(echo "${www_authenticate}" | cut -d' ' -f3)
+                local service_info
+                service_info=$(echo "${www_authenticate}" | cut -d' ' -f3)
 
                 local index=1
                 while true; do
                     >&2 echo "[get_token] index=${index}."
 
-                    local item=$(echo "${service_info}" | cut -d',' -f${index})
+                    local item
+                    item=$(echo "${service_info}" | cut -d',' -f${index})
                     >&2 echo "[get_token] item=${item}."
                     if test -z "${item}"; then
                         break
                     fi
 
-                    local key=$(echo "${item}" | cut -d= -f1)
-                    local value=$(echo "${item}" | cut -d= -f2 | tr -d '"')
-                    declare $key=$value
+                    local key
+                    key=$(echo "${item}" | cut -d= -f1)
+                    local value
+                    value=$(echo "${item}" | cut -d= -f2 | tr -d '"')
+                    declare "$key"="$value"
 
                     index=$(( index + 1))
                 done
 
+                # shellcheck disable=SC2154
                 >&2 echo "[get_token] realm=${realm}, service=${service}."
             fi
 
@@ -105,7 +117,8 @@ get_token() {
             elif test -z "${user}"; then
                 >&2 echo "[get_token] No authentication specified"
 
-                local auth=$(get_docker_auth "${registry}")
+                local auth
+                auth=$(get_docker_auth "${registry}")
                 >&2 echo "[get_token] Got auth length=${#auth}"
                 if test -z "${auth}"; then
                     >&2 echo "[get_token] Setting basic authentication from Docker credentials"
@@ -120,10 +133,11 @@ get_token() {
             >&2 echo curl "${realm}" \
                 --silent \
                 --request GET \
-                ${basic_auth} \
+                "${basic_auth}" \
                 --data-urlencode "service=${service}" \
                 --data-urlencode "scope=repository:${repository}:${access}"
-            local code=$(
+            local code
+            code=$(
                 curl "${realm}" \
                     --silent \
                     --request GET \
@@ -138,8 +152,11 @@ get_token() {
             if test "${code}" -lt 300; then
                 >&2 echo "[get_token] Successfully obtained token"
 
-                local expiry_seconds=$(cat "${temp_dir}/body.json" | jq --raw-output '.expires_in')
+                local expiry_seconds
+                # shellcheck disable=SC2002
+                expiry_seconds=$(cat "${temp_dir}/body.json" | jq --raw-output '.expires_in')
                 >&2 echo "Token expires in ${expiry_seconds} seconds"
+                # shellcheck disable=SC2002
                 cat "${temp_dir}/body.json" | jq --raw-output '.token'
 
             else
