@@ -1,8 +1,8 @@
-MEDIA_type_manifest_V1=application/vnd.docker.distribution.manifest.v1+json
-MEDIA_type_manifest_V2=application/vnd.docker.distribution.manifest.v2+json
-MEDIA_type_manifest_LIST=application/vnd.docker.distribution.manifest.list.v2+json
-MEDIA_type_config=application/vnd.docker.container.image.v1+json
-MEDIA_type_layer=application/vnd.docker.image.rootfs.diff.tar.gzip
+MEDIA_TYPE_MANIFEST_V1=application/vnd.docker.distribution.manifest.v1+json
+MEDIA_TYPE_MANIFEST_V2=application/vnd.docker.distribution.manifest.v2+json
+MEDIA_TYPE_MANIFEST_LIST=application/vnd.docker.distribution.manifest.list.v2+json
+MEDIA_TYPE_CONFIG=application/vnd.docker.container.image.v1+json
+MEDIA_TYPE_LAYER=application/vnd.docker.image.rootfs.diff.tar.gzip
 
 function parse_image() {
     local image=$1
@@ -28,7 +28,7 @@ function get_manifest() {
 
     curl "${registry}/v2/${repository}/manifests/${tag}" \
         --silent \
-        --header "Accept: ${MEDIA_type_manifest_V2}"
+        --header "Accept: ${MEDIA_TYPE_MANIFEST_V2}"
 }
 
 function get_config_digest() {
@@ -53,7 +53,7 @@ function get_config_by_digest() {
 
     curl "${registry}/v2/${repository}/blobs/${digest}" \
             --silent \
-            --header "Accept: ${MEDIA_type_config}"
+            --header "Accept: ${MEDIA_TYPE_CONFIG}"
 }
 
 function get_config() {
@@ -69,7 +69,7 @@ function get_config() {
         xargs -I{} \
             curl "http://${registry}/v2/${repository}/blobs/{}" \
                 --silent \
-                --header "Accept: ${MEDIA_type_config}"
+                --header "Accept: ${MEDIA_TYPE_CONFIG}"
 }
 
 function check_digest() {
@@ -119,7 +119,7 @@ function get_blob() {
     local registry=$1
     local repository=$2
     local digest=$3
-    local type=${4:-${MEDIA_type_layer}}
+    local type=${4:-${MEDIA_TYPE_LAYER}}
 
     assert_value "${registry}" "[ERROR] Failed to provide registry. Usage: get_blob <registry> <repository> <digest> [<type>]"
     assert_value "${repository}" "[ERROR] Failed to provide repository. Usage: get_blob <registry> <repository> <digest> [<type>]"
@@ -131,7 +131,7 @@ function get_blob() {
 
     >&2 echo "[get_blob] Fetching blob with digest ${digest} for repository ${repository}"
 
-    curl -sH "Accept: ${MEDIA_type_layer}" "${registry}/v2/${repository}/blobs/${digest}"
+    curl -sH "Accept: ${TYPE}" "${registry}/v2/${repository}/blobs/${digest}"
 }
 
 function upload_manifest() {
@@ -158,7 +158,7 @@ function upload_manifest() {
         --silent \
         --fail \
         --request PUT \
-        --header "Content-Type: ${MEDIA_type_manifest_V2}" \
+        --header "Content-Type: ${MEDIA_TYPE_MANIFEST_V2}" \
         --data "${manifest}"            
 }
 
@@ -207,7 +207,7 @@ function upload_config() {
     curl "${upload_url}" \
         --fail \
         --request PUT \
-        --header "Content-Type: ${MEDIA_type_config}" \
+        --header "Content-Type: ${MEDIA_TYPE_CONFIG}" \
         --data "${config}"
     >&2 echo "[upload_config] Done"
 }
@@ -217,6 +217,8 @@ function upload_blob() {
     local repository=$2
     local layer=$3
     local type=$4
+
+    >&2 echo "[upload_blob] Got $@"
 
     assert_value "${registry}" "[ERROR] Failed to provide registry. Usage: upload_blob <registry> <repository> <file> <type>"
     assert_value "${repository}" "[ERROR] Failed to provide repository. Usage: upload_blob <registry> <repository> <file> <type>"
