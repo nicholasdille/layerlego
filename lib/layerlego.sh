@@ -100,7 +100,7 @@ function update_config() {
 function append_layer_to_manifest() {
     local digest=$1
     local size=$2
-    local type=${3:-${MEDIA_type_LAYER}}
+    local type=${3:-${MEDIA_TYPE_LAYER}}
 
     assert_pipeline_input "[EEE] [append_layer_to_manifest] Failed to provide pipeline input. Usage: cat | update_config <digest> <size> [<type>]"
     assert_value "${digest}" "[EEE] [append_layer_to_manifest] Failed to provide config digest. Usage: cat | update_config <digest> <size> [<type>]"
@@ -158,7 +158,7 @@ function insert_layer_in_manifest() {
     local index=$1
     local digest=$2
     local size=$3
-    local type=${4:-${MEDIA_type_LAYER}}
+    local type=${4:-${MEDIA_TYPE_LAYER}}
 
     assert_pipeline_input "[EEE] [insert_layer_in_manifest] Failed to provide pipeline input. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
     assert_value "${index}" "[EEE] [insert_layer_in_manifest] Failed to provide index. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
@@ -199,7 +199,7 @@ function replace_layer_in_manifest() {
     local index=$1
     local digest=$2
     local size=$3
-    local type=${4:-${MEDIA_type_LAYER}}
+    local type=${4:-${MEDIA_TYPE_LAYER}}
 
     assert_pipeline_input "[EEE] [replace_layer_in_manifest] Failed to provide pipeline input. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
     assert_value "${index}" "[EEE] [replace_layer_in_manifest] Failed to provide index. Usage: cat | insert_layer_in_manifest <index> <digest> <size> [<type>]"
@@ -250,4 +250,18 @@ function get_layer_digest_by_index() {
         jq '.layers[$index | tonumber].digest' \
             --raw-output \
             --arg index "${index}"
+}
+
+function get_manifest_layers() {
+    local registry=$1
+    local repository=$2
+    local tag=${3:-latest}
+
+    assert_value "${registry}" "[EEE] [get_manifest_layers] Failed to provide registry. Usage: get_manifest_layers <registry> <repository> <tag>"
+    assert_value "${repository}" "[EEE] [get_manifest_layers] Failed to provide repository. Usage: get_manifest_layers <registry> <repository> <tag>"
+
+    >&2 echo "[get_manifest_layers] layers:"
+
+    get_manifest "${registry}" "${repository}" "${tag}" | \
+        jq --raw-output '.layers[].digest'    
 }

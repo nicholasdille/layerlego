@@ -23,21 +23,6 @@ get_manifest "${REGISTRY}" labelbot >"${TEMP}/manifest.json"
 get_config "${REGISTRY}" labelbot >"${TEMP}/config.json"
 
 # shellcheck disable=SC2002
-layer_digest=$(
-    cat "${TEMP}/manifest.json" | \
-        jq --raw-output '.layers[-1].digest'
-)
-get_blob "${REGISTRY}" labelbot "${layer_digest}" >"${TEMP}/${layer_digest}"
-# shellcheck disable=SC2002
-cat "${TEMP}/${layer_digest}" | sha256sum
-# shellcheck disable=SC2002
-cat "${TEMP}/${layer_digest}" | gunzip | sha256sum
-mkdir -p "${TEMP}/labelbot"
-echo "bar" >"${TEMP}/labelbot/foo"
-tar -czf "${TEMP}/labelbot.tar.gz" "${TEMP}/labelbot"
-upload_blob "${REGISTRY}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
-
-# shellcheck disable=SC2002
 layer_index=$(
     cat "${TEMP}/config.json" | \
         get_layer_index_by_command "LABEL foo="
@@ -53,6 +38,23 @@ echo "empty layer offset: ${empty_layer_offset}"
 
 layer_index=$(( layer_index - empty_layer_offset + 1 ))
 echo "insert at: ${layer_index}"
+
+# shellcheck disable=SC2002
+layer_digest=$(
+    cat "${TEMP}/manifest.json" | \
+        get_layer_digest_by_index "${layer_index}"
+)
+get_blob "${REGISTRY}" labelbot "${layer_digest}" >"${TEMP}/${layer_digest}"
+# shellcheck disable=SC2002
+cat "${TEMP}/${layer_digest}" | sha256sum
+# shellcheck disable=SC2002
+cat "${TEMP}/${layer_digest}" | gunzip | sha256sum
+mkdir -p "${TEMP}/labelbot"
+pushd "${TEMP}/labelbot"
+echo "bar" >"foo"
+popd
+tar -czf "${TEMP}/labelbot.tar.gz" -C "${TEMP}/labelbot" .
+upload_blob "${REGISTRY}" labelbot "${TEMP}/labelbot.tar.gz" "${MEDIA_TYPE_LAYER}"
 
 # shellcheck disable=SC2002
 rootfs_digest=$(cat "${TEMP}/labelbot.tar.gz" | gunzip | sha256sum | cut -d' ' -f1)
@@ -78,3 +80,8 @@ cat "${TEMP}/manifest.json" | \
 # shellcheck disable=SC2002
 cat "${TEMP}/new_manifest.json" | \
     upload_manifest "${REGISTRY}" labelbot new
+
+echo "labelbot:latest"
+get_manifest_layers "${REGISTRY}" labelbot
+echo "labelbot:new"
+get_manifest_layers "${REGISTRY}" labelbot new
