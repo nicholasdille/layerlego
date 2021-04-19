@@ -1,0 +1,5 @@
+FROM alpine
+RUN apk update
+LABEL name.dille.labelbot.type=replace
+COPY labelbot_replace.sh /
+RUN apk add bash
