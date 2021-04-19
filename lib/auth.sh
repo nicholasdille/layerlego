@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: "${DOCKER_CONFIG:=${HOME/.docker}}"
+: "${DOCKER_CONFIG:=${HOME}/.docker}"
 
 get_docker_auth() {
     local registry=${1:-https://index.docker.io/v1/}
@@ -40,7 +40,7 @@ get_token() {
     fi
 
     local schema=https
-    if test -z "${insecure}"; then
+    if test -n "${insecure}"; then
         schema=http
     fi
     >&2 echo "[get_token] Using schema ${schema}."
@@ -53,6 +53,7 @@ get_token() {
     http_code=$(
         curl "${schema}://${registry}/v2/" \
             --silent \
+            --location \
             --write-out "%{http_code}" \
             --output "${temp_dir}/body.txt" \
             --dump-header "${temp_dir}/header.txt")
@@ -71,17 +72,18 @@ get_token() {
             )
             >&2 echo "[get_token] Got www_authenticate ${www_authenticate}."
 
-            if test -z "${www_authenticate}"; then
+            if test -n "${www_authenticate}"; then
                 local service_info
                 service_info=$(echo "${www_authenticate}" | cut -d' ' -f3)
+                #>&2 echo "[get_token] service_info=${service_info}."
 
                 local index=1
                 while true; do
-                    >&2 echo "[get_token] index=${index}."
+                    #>&2 echo "[get_token] index=${index}."
 
                     local item
                     item=$(echo "${service_info}" | cut -d',' -f${index})
-                    >&2 echo "[get_token] item=${item}."
+                    #>&2 echo "[get_token] item=${item}."
                     if test -z "${item}"; then
                         break
                     fi
@@ -120,9 +122,9 @@ get_token() {
                 local auth
                 auth=$(get_docker_auth "${registry}")
                 >&2 echo "[get_token] Got auth length=${#auth}"
-                if test -z "${auth}"; then
+                if test -n "${auth}"; then
                     >&2 echo "[get_token] Setting basic authentication from Docker credentials"
-                    basic_auth="--user '${auth}'"
+                    basic_auth="--user ${auth}"
                 fi
 
             else
@@ -133,7 +135,7 @@ get_token() {
             >&2 echo curl "${realm}" \
                 --silent \
                 --request GET \
-                "${basic_auth}" \
+                ${basic_auth} \
                 --data-urlencode "service=${service}" \
                 --data-urlencode "scope=repository:${repository}:${access}"
             local code
@@ -141,7 +143,7 @@ get_token() {
                 curl "${realm}" \
                     --silent \
                     --request GET \
-                    "${basic_auth}" \
+                    ${basic_auth} \
                     --data-urlencode "service=${service}" \
                     --data-urlencode "scope=repository:${repository}:${access}" \
                     --output "${temp_dir}/body.json" \
