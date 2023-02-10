@@ -1,0 +1,16 @@
+ARG VERSION=focal
+FROM ubuntu:${VERSION} AS from_docker
+COPY files/docker-no-recommends /etc/apt/apt.conf.d/
+RUN apt-get update \
+ && apt-get -y upgrade
+RUN apt-get -y install \
+        ubuntu-release-upgrader-core \
+        curl \
+        ca-certificates \
+        vim
+#COPY files/release-upgrades /etc/update-manager/
+#RUN do-release-upgrade -d -f DistUpgradeViewNonInteractive
+#RUN curl -sL https://github.com/wimpysworld/rolling-rhino/raw/master/rolling-rhino | bash
+
+FROM scratch AS from_rootfs
+ADD hirsute-base-amd64.tar.gz /
